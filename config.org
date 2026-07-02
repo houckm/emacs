@@ -104,8 +104,8 @@ Customize the UI and behavioral preferences for better usability.
                                             "%b"))))
 
 ;; Uncomment to start Emacs in fullscreen
-(add-to-list 'default-frame-alist '(fullscreen . fullboth))
-(add-hook 'window-setup-hook 'toggle-frame-fullscreen t)
+;; (add-to-list 'default-frame-alist '(fullscreen . fullboth))
+;; (add-hook 'window-setup-hook 'toggle-frame-fullscreen t)
 
 ;; Set fixed transparency
 (set-frame-parameter (selected-frame) 'alpha '(85 . 85))
