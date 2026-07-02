@@ -153,7 +153,6 @@ Configure package repositories and initialize package management.
 
 ;; Configure package repositories
 (setq package-archives '(("melpa" . "https://melpa.org/packages/")
-                         ("org" . "https://orgmode.org/elpa/")
                          ("elpa" . "https://elpa.gnu.org/packages/")))
 
 (package-initialize)
@@ -191,9 +190,6 @@ Configure basic editor behavior.
 #+begin_src emacs-lisp
 ;; Auto-reload files when they change on disk
 (global-auto-revert-mode 1)
-
-;; Enable automatic matching of brackets/parentheses
-(electric-pair-mode 1)
 
 ;; C/C++ style configuration
 (setq c-default-style "bsd")
@@ -369,27 +365,27 @@ Display available keybindings in popup.
 Configuration for the startup dashboard.
 
 #+begin_src emacs-lisp
-;; Dashboard - Startup screen
-(use-package dashboard)
-(require 'dashboard)
-(dashboard-setup-startup-hook)
-
-;; Dashboard configuration
-(setq dashboard-banner-logo-title "Welcome to Emacs!")
-(setq dashboard-startup-banner 'logo)
-(setq dashboard-center-content t)
-(setq dashboard-type-icons-type 'all-the-icons)
-(setq dashboard-set-heading-icons t)
-(setq dashboard-set-file-icons t)
-(setq dashboard-items '((recents . 5)
-			(bookmarks . 5)
-			(projects . 5)
-			(agenda . 5)))
-
-;; Install all-the-icons first
+;; all-the-icons (must load before dashboard)
 (use-package all-the-icons
   :ensure t
   :if (display-graphic-p))
+
+;; Dashboard - Startup screen
+(use-package dashboard
+  :ensure t
+  :after all-the-icons
+  :config
+  (setq dashboard-banner-logo-title "Welcome to Emacs!")
+  (setq dashboard-startup-banner 'logo)
+  (setq dashboard-center-content t)
+  (setq dashboard-icon-type 'all-the-icons)
+  (setq dashboard-set-heading-icons t)
+  (setq dashboard-set-file-icons t)
+  (setq dashboard-items '((recents . 5)
+                           (bookmarks . 5)
+                           (projects . 5)
+                           (agenda . 5)))
+  (dashboard-setup-startup-hook))
 #+end_src
 
 * UI Enhancements
@@ -421,7 +417,7 @@ Configure themes and theme switching functionality.
   (load-theme 'modus-vivendi t))
 
 ;; Theme switching functionality
-(defvar my/current-theme-is-light t)
+(defvar my/current-theme-is-light nil)
 
 (defun my/toggle-theme ()
   "Toggle between light and dark themes."
@@ -455,14 +451,7 @@ Git integration.
 Display git diff information inline.
 
 #+begin_src emacs-lisp
-;; Git gutter for inline git diff information
-(use-package git-gutter
-  :ensure t
-  :hook (prog-mode . git-gutter-mode)
-  :config
-  (setq git-gutter:update-interval 0.02))
-
-;; Diff-hl as an alternative to git-gutter
+;; Diff-hl for inline git diff information
 (use-package diff-hl
   :ensure t
   :config
@@ -520,26 +509,6 @@ Integration for nix-shell support.
 * Org Mode
 Configuration for Org mode, the killer feature of Emacs.
 
-** Org Mode Setup
-Basic Org mode setup.
-
-#+begin_src emacs-lisp
-;; Org-mode setup functions
-(defun efs/org-mode-setup ()
-  (org-indent-mode)
-  (variable-pitch-mode 1)
-  (visual-line-mode 1))
-
-(setq org-startup-indented t)
-
-;; Org-mode configuration
-(use-package org
-  :hook (org-mode . efs/org-mode-setup)
-  :config
-  (setq org-ellipsis " ▾")
-  (efs/org-font-setup))
-#+end_src
-
 ** Org Font Setup
 Configure fonts for Org mode.
 
@@ -570,6 +539,26 @@ Configure fonts for Org mode.
   (set-face-attribute 'org-special-keyword nil :inherit '(font-lock-comment-face fixed-pitch))
   (set-face-attribute 'org-meta-line nil :inherit '(font-lock-comment-face fixed-pitch))
   (set-face-attribute 'org-checkbox nil :inherit 'fixed-pitch))
+#+end_src
+
+** Org Mode Setup
+Basic Org mode setup.
+
+#+begin_src emacs-lisp
+;; Org-mode setup functions
+(defun efs/org-mode-setup ()
+  (org-indent-mode)
+  (variable-pitch-mode 1)
+  (visual-line-mode 1))
+
+(setq org-startup-indented t)
+
+;; Org-mode configuration
+(use-package org
+  :hook (org-mode . efs/org-mode-setup)
+  :config
+  (setq org-ellipsis " ▾")
+  (efs/org-font-setup))
 #+end_src
 
 ** Visual Fill Column
@@ -639,7 +628,7 @@ Configuration for Org agenda.
 (setq org-agenda-show-all-dates t)
 (setq org-agenda-skip-deadline-if-done t)
 (setq org-agenda-skip-scheduled-if-done t)
-(setq org-agenda-todo-keywords '((sequence "TODO" "IN-PROGRESS" "WAITING" "|" "DONE" "CANCELED")))
+(setq org-todo-keywords '((sequence "TODO" "IN-PROGRESS" "WAITING" "|" "DONE" "CANCELED")))
 
 ;; Add keybinding for org-agenda
 (global-set-key (kbd "C-c a") 'org-agenda)
@@ -797,9 +786,7 @@ Daily notes for Org mode.
 Vim emulation for Emacs.
 
 #+begin_src emacs-lisp
-  (setq evil-want-keybinding nil)
-
-  ;; Evil mode (Vim emulation) configuration
+;; Evil mode (Vim emulation) configuration
 (use-package evil
   :init
   (setq evil-want-integration t)
@@ -810,26 +797,26 @@ Vim emulation for Emacs.
   (evil-mode 1)
   (define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
   (define-key evil-insert-state-map (kbd "C-h") 'evil-delete-backward-char-and-join)
-  
+
   ;; Use visual line motions even outside of visual-line-mode buffers
   (evil-global-set-key 'motion "j" 'evil-next-visual-line)
   (evil-global-set-key 'motion "k" 'evil-previous-visual-line)
 
   (evil-set-initial-state 'messages-buffer-mode 'normal)
   (evil-set-initial-state 'dashboard-mode 'normal)
-  
-  ;; Move this line here from key-chord config
+
   (when (fboundp 'key-chord-define)
     (key-chord-define evil-insert-state-map "jk" 'evil-normal-state)))
-  ;; Evil collection for evil mode compatibility with various modes
-  (use-package evil-collection
-    :after evil
-    :config
-    (evil-collection-init))
 
-  ;; Evil-nerd-commenter for better comment handling
-  (use-package evil-nerd-commenter
-    :bind ("M-/" . evilnc-comment-or-uncomment-lines))
+;; Evil collection for evil mode compatibility with various modes
+(use-package evil-collection
+  :after evil
+  :config
+  (evil-collection-init))
+
+;; Evil-nerd-commenter for better comment handling
+(use-package evil-nerd-commenter
+  :bind ("M-/" . evilnc-comment-or-uncomment-lines))
 #+end_src
 
 * Development Tools
@@ -871,6 +858,16 @@ Eglot for LSP (Language Server Protocol) support.
 #+end_src
 
 ** Programming Languages
+
+*** Rust
+Rust development environment.
+
+#+begin_src emacs-lisp
+;; Rust mode
+(use-package rust-mode
+  :ensure t
+  :hook (rust-mode . eglot-ensure))
+#+end_src
 
 *** Python
 Python development environment.
@@ -946,16 +943,12 @@ Utilities for programming.
   :ensure t
   :hook (prog-mode . rainbow-delimiters-mode))
 
-;; Tree-sitter for better syntax highlighting and navigation
-(use-package tree-sitter
+;; Treesit-auto for automatic tree-sitter grammar management (Emacs 29+)
+(use-package treesit-auto
   :ensure t
   :config
-  (global-tree-sitter-mode)
-  :hook (tree-sitter-after-on . tree-sitter-hl-mode))
-
-(use-package tree-sitter-langs
-  :ensure t
-  :after tree-sitter)
+  (setq treesit-auto-install 'prompt)
+  (global-treesit-auto-mode))
 
 ;; Code folding with origami
 (use-package origami
@@ -995,29 +988,3 @@ Elfeed for reading RSS feeds.
 	'("https://www.tecmint.com/feed/")))
 #+end_src
 
-* Configuration Loader
-This section loads the config.org file.
-
-#+begin_src emacs-lisp
-;;; init.el --- Load the config.org file -*- lexical-binding: t -*-
-
-;; This file loads the actual configuration from ~/.emacs.d/config.org
-
-;; Set up package.el
-(require 'package)
-(setq package-archives '(("melpa" . "https://melpa.org/packages/")
-                         ("org" . "https://orgmode.org/elpa/")
-                         ("elpa" . "https://elpa.gnu.org/packages/")))
-(package-initialize)
-
-;; Install use-package if it's not already installed
-(unless (package-installed-p 'use-package)
-  (package-refresh-contents)
-  (package-install 'use-package))
-
-;; Load the literate config if it exists
-(when (file-exists-p "~/.emacs.d/config.org")
-  (org-babel-load-file "~/.emacs.d/config.org"))
-
-;;; init.el ends here
-#+end_src
