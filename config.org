@@ -479,7 +479,8 @@ Configuration for the startup dashboard.
   :config
   (setq dashboard-banner-logo-title "Welcome to Emacs!")
   (setq dashboard-startup-banner 'logo)
-  (setq dashboard-center-content t)
+  (setq dashboard-center-content t)            ;; center content horizontally
+  (setq dashboard-vertically-center-content t) ;; and vertically
   (setq dashboard-icon-type 'all-the-icons)
   (setq dashboard-set-heading-icons t)
   (setq dashboard-set-file-icons t)
@@ -487,7 +488,11 @@ Configuration for the startup dashboard.
                            (bookmarks . 5)
                            (projects . 5)
                            (agenda . 5)))
-  (dashboard-setup-startup-hook))
+  (dashboard-setup-startup-hook)
+  ;; Make the dashboard the initial buffer (also correct under emacsclient)
+  (setq initial-buffer-choice (lambda () (get-buffer-create "*dashboard*")))
+  ;; Re-center once the frame has reached its final size
+  (add-hook 'window-setup-hook #'dashboard-refresh-buffer))
 #+end_src
 
 * UI Enhancements
@@ -896,7 +901,9 @@ Vim emulation for Emacs.
   (evil-global-set-key 'motion "k" 'evil-previous-visual-line)
 
   (evil-set-initial-state 'messages-buffer-mode 'normal)
-  (evil-set-initial-state 'dashboard-mode 'normal)
+  ;; Dashboard is view-only: motion state disables editing operators
+  ;; (r/p/etc.) so the dashboard's own shortcuts work and nothing gets edited
+  (evil-set-initial-state 'dashboard-mode 'motion)
 
   (when (fboundp 'key-chord-define)
     (key-chord-define evil-insert-state-map "jk" 'evil-normal-state)))
