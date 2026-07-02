@@ -1,0 +1,22 @@
+# Generated / tangled
+/init.el          # remove this line if you'd rather track the tangled output
+*.elc
+/eln-cache/
+
+# Packages & build artifacts
+/elpa/
+/straight/        # only relevant if you use straight.el
+/.cache/
+
+# Runtime state
+/auto-save-list/
+/transient/
+/eshell/
+/url/
+/tramp
+/recentf
+/bookmarks
+/network-security.data
+/projectile-bookmarks.eld
+/.org-id-locations
+custom.el         # remove if you want to track your custom-set-variables

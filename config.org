@@ -1,0 +1,1023 @@
+#+TITLE: Emacs Configuration
+#+AUTHOR: Hunter Houck
+#+PROPERTY: header-args:emacs-lisp :tangle ~/.emacs.d/init.el :mkdirp yes
+
+* Auto-tangle Configuration File
+This section ensures that our config.org file automatically tangles to init.el whenever saved.
+
+#+begin_src emacs-lisp
+;; Automatically tangle our Emacs.org config file when we save it
+(defun efs/org-babel-tangle-config ()
+  (when (string-equal (buffer-file-name)
+                      (expand-file-name "~/.emacs.d/config.org"))
+    ;; Dynamic scoping to the rescue
+    (let ((org-confirm-babel-evaluate nil))
+      (org-babel-tangle))))
+
+(add-hook 'org-mode-hook (lambda () (add-hook 'after-save-hook #'efs/org-babel-tangle-config)))
+#+end_src
+
+* Performance Optimizations
+These settings help improve Emacs startup time and general performance.
+
+** Garbage Collection
+Adjust garbage collection thresholds for better performance.
+
+#+begin_src emacs-lisp
+(defun my/set-gc-threshold ()
+  "Set the garbage collection threshold to a higher value."
+  (setq gc-cons-threshold (* 100 1000 1000)))
+
+(defun my/restore-gc-threshold ()
+  "Restore the garbage collection threshold to a normal value."
+  (setq gc-cons-threshold (* 10 1000 1000)))
+
+;; Higher GC threshold during startup and minibuffer use
+(add-hook 'emacs-startup-hook 'my/set-gc-threshold)
+(add-hook 'minibuffer-setup-hook 'my/set-gc-threshold)
+(add-hook 'minibuffer-exit-hook 'my/restore-gc-threshold)
+#+end_src
+
+** Startup Performance Monitoring
+Display the time it takes to start Emacs to help track performance improvements.
+
+#+begin_src emacs-lisp
+(defun efs/display-startup-time ()
+  "Display a message indicating the time taken to load Emacs.
+The message includes the number of garbage collections performed."
+  (message "Emacs loaded in %s with %d garbage collections."
+           (format "%.2f seconds"
+                   (float-time
+                    (time-subtract after-init-time before-init-time)))
+           gcs-done))
+
+(add-hook 'emacs-startup-hook #'efs/display-startup-time)
+#+end_src
+
+** Native Compilation
+Use native compilation for better performance when available.
+
+#+begin_src emacs-lisp
+;; Use emacs native compilation for better performance
+(when (fboundp 'native-comp-available-p)
+  (setq native-comp-async-report-warnings-errors nil))
+
+;; Increase the amount of data Emacs reads from processes
+(setq read-process-output-max (* 1024 1024)) ;; 1mb
+
+;; Add this after your (require 'package) line
+(setq byte-compile-warnings '((not obsolete))
+      warning-suppress-types '((comp) (bytecomp)))
+#+end_src
+
+* Basic UI Configuration
+These settings configure the basic UI elements of Emacs for a cleaner interface.
+
+** Disable Unnecessary UI Elements
+Remove visual clutter and make the interface cleaner.
+
+#+begin_src emacs-lisp
+;; Basic UI configuration: Disable unnecessary UI elements
+(setq inhibit-startup-message t)
+(scroll-bar-mode -1)
+(tool-bar-mode -1)
+(tooltip-mode -1)
+(set-fringe-mode 10)
+(menu-bar-mode -1)
+#+end_src
+
+** UI and Behavior Preferences
+Customize the UI and behavioral preferences for better usability.
+
+#+begin_src emacs-lisp
+;; UI and behavior preferences
+(setq visible-bell t)                  ;; Visual bell instead of audio
+(setq-default line-spacing 2)          ;; Add slight line spacing
+(setq history-length 25)               ;; Limit history length
+(setq use-dialog-box nil)              ;; Disable dialog boxes
+(setq use-short-answers t)             ;; Use y/n instead of yes/no
+
+;; Configure frame title to show either filename or buffer name
+(setq frame-title-format
+      '("Emacs " emacs-version ": "(:eval (if (buffer-file-name)
+                                              (abbreviate-file-name (buffer-file-name))
+                                            "%b"))))
+
+;; Uncomment to start Emacs in fullscreen
+(add-to-list 'default-frame-alist '(fullscreen . fullboth))
+(add-hook 'window-setup-hook 'toggle-frame-fullscreen t)
+
+;; Set fixed transparency
+(set-frame-parameter (selected-frame) 'alpha '(85 . 85))
+(add-to-list 'default-frame-alist '(alpha . (85 . 85)))
+#+end_src
+
+** Line Numbers
+Enable line numbers globally with exceptions for certain modes where they don't make sense.
+
+#+begin_src emacs-lisp
+;; Enable line and column numbers globally
+(column-number-mode)
+(global-display-line-numbers-mode t)
+
+;; Disable line numbers for specific modes where they don't make sense
+(dolist (mode '(org-mode-hook
+                term-mode-hook
+                eshell-mode-hook))
+  (add-hook mode (lambda () (display-line-numbers-mode 0))))
+#+end_src
+
+** Font Configuration
+Configure fonts for different types of text.
+
+#+begin_src emacs-lisp
+;; Font configuration
+(defvar efs/default-font-size 200)
+(defvar efs/default-variable-font-size 200)
+
+;; Set up fonts for different types of text
+(set-face-attribute 'default nil :font "Comic Code" :height efs/default-font-size)
+(set-face-attribute 'fixed-pitch nil :font "Comic Code" :height efs/default-font-size)
+(set-face-attribute 'variable-pitch nil :font "Comic Code" :height efs/default-variable-font-size :weight 'regular)
+#+end_src
+
+* Package Management
+Configuration for package management with package.el and use-package.
+
+** Package Repositories
+Configure package repositories and initialize package management.
+
+#+begin_src emacs-lisp
+;; Package management setup
+(require 'package)
+
+;; Configure package repositories
+(setq package-archives '(("melpa" . "https://melpa.org/packages/")
+                         ("org" . "https://orgmode.org/elpa/")
+                         ("elpa" . "https://elpa.gnu.org/packages/")))
+
+(package-initialize)
+(unless package-archive-contents
+  (package-refresh-contents))
+
+;; Initialize use-package
+(unless (package-installed-p 'use-package)
+  (package-install 'use-package))
+
+(require 'use-package)
+(setq use-package-always-ensure t)
+#+end_src
+
+** Auto Package Update
+Automatically update packages.
+
+#+begin_src emacs-lisp
+;; Auto-package-update - Automatically update packages
+(use-package auto-package-update
+  :ensure t
+  :custom
+  (auto-package-update-delete-old-versions t)
+  (auto-package-update-hide-results t)
+  :config
+  (auto-package-update-maybe))
+#+end_src
+
+* Editor Behavior
+General editor behavior settings.
+
+** Basic Settings
+Configure basic editor behavior.
+
+#+begin_src emacs-lisp
+;; Auto-reload files when they change on disk
+(global-auto-revert-mode 1)
+
+;; Enable automatic matching of brackets/parentheses
+(electric-pair-mode 1)
+
+;; C/C++ style configuration
+(setq c-default-style "bsd")
+(setq tab-width 2)
+(setq c-basic-offset 2)
+(setq-default indent-tabs-mode nil)    ;; Use spaces instead of tabs
+
+;; Editor behavior settings
+(setq require-final-newline t)         ;; Add newline at end of files
+(global-hl-line-mode t)                ;; Highlight current line
+(setq global-auto-revert-non-file-buffers t)  ;; Auto-refresh all buffers
+
+;; File-local variables are safe
+(setq enable-local-variables t)
+#+end_src
+
+** Custom File
+Store customizations in a separate file.
+
+#+begin_src emacs-lisp
+;; Store custom variables in separate file
+(setq custom-file (locate-user-emacs-file "custom-vars.el"))
+(load custom-file 'noerror 'nomessage)
+#+end_src
+
+** Backup Configuration
+Configure backup file location and behavior.
+
+#+begin_src emacs-lisp
+;; Backup file configuration: Store all backups in ~/.emacs.d/backups
+(setq backup-directory-alist `(("." . "~/.emacs.d/backups")))
+#+end_src
+
+* Key Bindings
+Global and package-specific key bindings.
+
+** Global Key Bindings
+Define global key bindings for common operations.
+
+#+begin_src emacs-lisp
+;; Global key bindings
+(global-set-key (kbd "<escape>") 'keyboard-escape-quit)
+
+;; Additional keybindings
+(bind-key "RET" 'newline-and-indent)
+(bind-key "C-x C-k" 'kill-this-buffer)
+(bind-key "C-c r" 'replace-string)
+(bind-key "C-c s" 'isearch-forward)
+(bind-key "C-z" 'undo)
+(bind-key "M-g" 'goto-line)
+(bind-key "C-c c" 'comment-region)
+(bind-key "C-c u" 'uncomment-region)
+(bind-key "M-m" 'move-beginning-of-line)
+(bind-key "C-a" 'back-to-indentation)
+(bind-key "C-c e" 'eval-buffer)
+#+end_src
+
+** General.el
+Use general.el for better key binding configuration.
+
+#+begin_src emacs-lisp
+;; General.el for better key binding configuration
+(use-package general
+  :config
+  (general-create-definer rune/leader-keys
+    :keymaps '(normal insert visual emacs)
+    :prefix "SPC"
+    :global-prefix "C-SPC"))
+
+;; Define buffer switching shortcut
+(general-define-key
+ "C-M-j" 'counsel-switch-buffer)
+#+end_src
+
+** Key-chord
+Use key-chord for faster mode switching.
+
+#+begin_src emacs-lisp
+  ;; Key-chord for faster mode switching (e.g., 'jk' to exit insert mode)
+  (use-package key-chord
+    :ensure t
+    :after evil  ;; Add this line to ensure it loads after evil
+    :config
+    (key-chord-mode 1)
+    (key-chord-define evil-insert-state-map "jk" 'evil-normal-state))
+#+end_src
+
+** Hydra
+Tie related commands into a family of short bindings.
+
+#+begin_src emacs-lisp
+;; Hydra - Tie related commands into a family of short bindings
+(use-package hydra)
+
+;; Text scaling hydra
+(defhydra hydra-text-scale (:timeout 4)
+  "scale text"
+  ("j" text-scale-increase "in")
+  ("k" text-scale-decrease "out")
+  ("f" nil "finished" :exit t))
+#+end_src
+
+* Completion Framework
+Configuration for the completion framework.
+
+** Ivy
+Configuring Ivy as the completion framework.
+
+#+begin_src emacs-lisp
+;; Ivy - Completion framework
+(use-package ivy
+  :diminish
+  :bind (("C-s" . swiper)
+	 :map ivy-minibuffer-map
+	 ("TAB" . ivy-alt-done)
+	 ("C-l" . ivy-alt-done)
+	 ("C-j" . ivy-next-line)
+	 ("C-k" . ivy-previous-line)
+	 :map ivy-switch-buffer-map
+	 ("C-k" . ivy-previous-line)
+	 ("C-l" . ivy-done)
+	 ("C-d" . ivy-switch-buffer-kill)
+	 :map ivy-reverse-i-search-map
+	 ("C-k" . ivy-previous-line)
+	 ("C-d" . ivy-reverse-i-search-kill))
+  :config
+  (ivy-mode 1))
+#+end_src
+
+** Counsel
+Enhanced versions of common Emacs commands.
+
+#+begin_src emacs-lisp
+;; Counsel - Enhanced versions of common Emacs commands
+(use-package counsel
+  :bind (("M-x" . counsel-M-x)
+	 ("C-x b" . counsel-ibuffer)
+	 ("C-x C-f" . counsel-find-file)
+	 :map minibuffer-local-map
+	 ("C-r" . 'counsel-minibuffer-history))
+  :config
+  (setq ivy-initial-inputs-alist nil))
+#+end_src
+
+** Helpful
+More helpful help buffers.
+
+#+begin_src emacs-lisp
+(use-package helpful
+  :custom
+  (counsel-describe-function-function #'helpful-callable)
+  (counsel-describe-variable-function #'helpful-variable)
+  :bind
+  ([remap describe-function] . helpful-function)  ; Changed from counsel-describe-function
+  ([remap describe-command] . helpful-command)
+  ([remap describe-variable] . helpful-variable)  ; Changed from counsel-describe-variable
+  ([remap describe-key] . helpful-key))
+#+end_src
+
+** Which-key
+Display available keybindings in popup.
+
+#+begin_src emacs-lisp
+;; Which-key - Displays available keybindings
+(use-package which-key
+  :init (which-key-mode)
+  :diminish which-key-mode
+  :config
+  (setq which-key-idle-delay 0.3))
+#+end_src
+
+* Dashboard
+Configuration for the startup dashboard.
+
+#+begin_src emacs-lisp
+;; Dashboard - Startup screen
+(use-package dashboard)
+(require 'dashboard)
+(dashboard-setup-startup-hook)
+
+;; Dashboard configuration
+(setq dashboard-banner-logo-title "Welcome to Emacs!")
+(setq dashboard-startup-banner 'logo)
+(setq dashboard-center-content t)
+(setq dashboard-type-icons-type 'all-the-icons)
+(setq dashboard-set-heading-icons t)
+(setq dashboard-set-file-icons t)
+(setq dashboard-items '((recents . 5)
+			(bookmarks . 5)
+			(projects . 5)
+			(agenda . 5)))
+
+;; Install all-the-icons first
+(use-package all-the-icons
+  :ensure t
+  :if (display-graphic-p))
+#+end_src
+
+* UI Enhancements
+Additional UI enhancements.
+
+** Doom Modeline
+A fancy and fast modeline.
+
+#+begin_src emacs-lisp
+;; Doom modeline - A fancy and fast modeline
+(use-package doom-modeline
+  :ensure t
+  :init (doom-modeline-mode 1)
+  :custom ((doom-modeline-height 20)))
+#+end_src
+
+** Theme Configuration
+Configure themes and theme switching functionality.
+
+#+begin_src emacs-lisp
+;; Theme configuration
+(use-package modus-themes
+  :ensure t
+  :config
+  ;; Add all your customizations prior to loading the themes
+  (setq modus-themes-italic-constructs t
+        modus-themes-bold-constructs t
+        modus-themes-region '(bg-only no-extend))
+  (load-theme 'modus-vivendi t))
+
+;; Theme switching functionality
+(defvar my/current-theme-is-light t)
+
+(defun my/toggle-theme ()
+  "Toggle between light and dark themes."
+  (interactive)
+  (if my/current-theme-is-light
+      (progn
+        (load-theme 'modus-vivendi t)  ;; Load the dark theme
+        (setq my/current-theme-is-light nil))
+    (progn
+      (load-theme 'modus-operandi t)   ;; Load the light theme
+      (setq my/current-theme-is-light t))))
+
+;; Add the keybinding (you can change this to your preference)
+(global-set-key (kbd "C-c t") 'my/toggle-theme)
+#+end_src
+
+* Version Control
+Git integration and version control tools.
+
+** Magit
+Git integration.
+
+#+begin_src emacs-lisp
+;; Magit - Git integration
+(use-package magit
+  :custom
+  (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
+#+end_src
+
+** Git Gutter
+Display git diff information inline.
+
+#+begin_src emacs-lisp
+;; Git gutter for inline git diff information
+(use-package git-gutter
+  :ensure t
+  :hook (prog-mode . git-gutter-mode)
+  :config
+  (setq git-gutter:update-interval 0.02))
+
+;; Diff-hl as an alternative to git-gutter
+(use-package diff-hl
+  :ensure t
+  :config
+  (global-diff-hl-mode))
+
+;; Treemacs Git integration
+(use-package treemacs-magit
+  :after (treemacs magit)
+  :ensure t)
+#+end_src
+
+* Project Management
+Tools for project management.
+
+** Projectile
+Project interaction library.
+
+#+begin_src emacs-lisp
+;; Projectile - Project interaction library
+(use-package projectile
+  :diminish projectile-mode
+  :config 
+  (projectile-mode +1)
+  ;; Move these registrations here
+  (projectile-register-project-type 'python-poetry '("pyproject.toml")
+                                    :project-file "pyproject.toml"
+                                    :compile "poetry build"
+                                    :test "poetry run pytest"
+                                    :run "poetry run python")
+  (projectile-register-project-type 'rust-cargo '("Cargo.toml")
+                                    :project-file "Cargo.toml"
+                                    :compile "cargo build"
+                                    :test "cargo test"
+                                    :run "cargo run")
+  :custom ((projectile-completion-system 'ivy))
+  :bind-keymap
+  ("C-c p" . projectile-command-map)
+  :init
+  (when (file-directory-p "~/Documents/Github/")
+    (setq projectile-project-search-path '("~/Documents/Github")))
+  (setq projectile-switch-project-action #'projectile-dired))
+#+end_src
+
+** Direnv
+Integration for nix-shell support.
+
+#+begin_src emacs-lisp
+;; Add direnv integration for nix-shell support
+(use-package direnv
+  :ensure t
+  :config
+  (direnv-mode))
+#+end_src
+
+* Org Mode
+Configuration for Org mode, the killer feature of Emacs.
+
+** Org Mode Setup
+Basic Org mode setup.
+
+#+begin_src emacs-lisp
+;; Org-mode setup functions
+(defun efs/org-mode-setup ()
+  (org-indent-mode)
+  (variable-pitch-mode 1)
+  (visual-line-mode 1))
+
+(setq org-startup-indented t)
+
+;; Org-mode configuration
+(use-package org
+  :hook (org-mode . efs/org-mode-setup)
+  :config
+  (setq org-ellipsis " ▾")
+  (efs/org-font-setup))
+#+end_src
+
+** Org Font Setup
+Configure fonts for Org mode.
+
+#+begin_src emacs-lisp
+;; Org-mode font configuration
+(defun efs/org-font-setup ()
+  ;; Replace list hyphen with dot
+  (font-lock-add-keywords 'org-mode
+                          '(("^ *\\([-]\\) "
+                             (0 (prog1 () (compose-region (match-beginning 1) (match-end 1) "•"))))))
+
+  ;; Set faces for heading levels
+  (dolist (face '((org-level-1 . 1.2)
+                  (org-level-2 . 1.1)
+                  (org-level-3 . 1.05)
+                  (org-level-4 . 1.0)
+                  (org-level-5 . 1.1)
+                  (org-level-6 . 1.1)
+                  (org-level-7 . 1.1)
+                  (org-level-8 . 1.1)))
+    (set-face-attribute (car face) nil :font "Comic Code" :weight 'regular :height (cdr face)))
+
+  ;; Ensure that anything that should be fixed-pitch in Org files appears that way
+  (set-face-attribute 'org-block nil :foreground nil :inherit 'fixed-pitch)
+  (set-face-attribute 'org-code nil   :inherit '(shadow fixed-pitch))
+  (set-face-attribute 'org-table nil   :inherit '(shadow fixed-pitch))
+  (set-face-attribute 'org-verbatim nil :inherit '(shadow fixed-pitch))
+  (set-face-attribute 'org-special-keyword nil :inherit '(font-lock-comment-face fixed-pitch))
+  (set-face-attribute 'org-meta-line nil :inherit '(font-lock-comment-face fixed-pitch))
+  (set-face-attribute 'org-checkbox nil :inherit 'fixed-pitch))
+#+end_src
+
+** Visual Fill Column
+Center text in Org mode.
+
+#+begin_src emacs-lisp
+;; Visual fill column for Org mode
+(defun efs/org-mode-visual-fill ()
+  (setq visual-fill-column-width 100
+        visual-fill-column-center-text t)
+  (visual-fill-column-mode 1))
+
+(use-package visual-fill-column
+  :hook (org-mode . efs/org-mode-visual-fill))
+#+end_src
+
+** Org Babel Languages
+Configure languages for Org babel.
+
+#+begin_src emacs-lisp
+;; Org-babel languages setup
+(org-babel-do-load-languages
+ 'org-babel-load-languages
+ '((emacs-lisp . t)
+   (python . t )
+   (C . t )
+   (lua . t)
+   (calc . t)
+   (shell . t)))
+
+;; Configure Org-mode code block templates
+(push '("conf-unix" . conf-unix) org-src-lang-modes)
+(require 'org-tempo)
+(add-to-list 'org-structure-template-alist '("shell" . "src shell"))
+(add-to-list 'org-structure-template-alist '("calc" . "src calc"))
+(add-to-list 'org-structure-template-alist '("lua" . "src lua"))
+(add-to-list 'org-structure-template-alist '("el" . "src emacs-lisp"))
+(add-to-list 'org-structure-template-alist '("py" . "src python"))
+(add-to-list 'org-structure-template-alist '("cl" . "src C"))
+
+;; Don't prompt before running code in org
+(setq org-confirm-babel-evaluate nil)
+#+end_src
+
+** Org Modern
+Modern UI enhancements for Org mode.
+
+#+begin_src emacs-lisp
+;; Modern Org mode UI enhancements
+(use-package org-modern
+  :ensure t
+  :hook (org-mode . org-modern-mode)
+  :config
+  (setq org-modern-agenda-borders t))
+#+end_src
+
+** Org Agenda
+Configuration for Org agenda.
+
+#+begin_src emacs-lisp
+;; Org Agenda configuration
+(setq org-agenda-files '("~/org-roam/agenda/"))
+(setq org-agenda-span 14)
+(setq org-agenda-start-on-weekday nil)
+(setq org-agenda-start-day "-1d")
+(setq org-deadline-warning-days 7)
+(setq org-agenda-show-all-dates t)
+(setq org-agenda-skip-deadline-if-done t)
+(setq org-agenda-skip-scheduled-if-done t)
+(setq org-agenda-todo-keywords '((sequence "TODO" "IN-PROGRESS" "WAITING" "|" "DONE" "CANCELED")))
+
+;; Add keybinding for org-agenda
+(global-set-key (kbd "C-c a") 'org-agenda)
+
+;; Custom agenda views
+(setq org-agenda-custom-commands
+      '(("d" "Dashboard"
+         ((agenda "" ((org-deadline-warning-days 7)))
+          (todo "NEXT"
+                ((org-agenda-overriding-header "Next Tasks")))
+          (tags-todo "agenda/ACTIVE" ((org-agenda-overriding-header "Active Projects")))))
+        ("n" "Next Tasks"
+         ((todo "NEXT"
+                ((org-agenda-overriding-header "Next Tasks")))))
+        ("W" "Work Tasks" tags-todo "+work")
+        ("w" "Workflow Status"
+         ((todo "WAITING"
+                ((org-agenda-overriding-header "Waiting on External")))
+          (todo "IN-PROGRESS"
+                ((org-agenda-overriding-header "In Progress")))
+          (todo "NEXT"
+                ((org-agenda-overriding-header "Next Actions")))))))
+#+end_src
+
+** Org Super Agenda
+Better organization for Org agenda.
+
+#+begin_src emacs-lisp
+;; Org-super-agenda for better agenda organization
+(use-package org-super-agenda
+  :ensure t
+  :after org-agenda
+  :config
+  (org-super-agenda-mode)
+  (setq org-super-agenda-groups
+        '((:name "Important"
+                 :priority "A")
+          (:name "Personal"
+                 :tag "personal")
+          (:name "Work"
+                 :tag "work")
+          (:name "Urgent"
+                 :deadline past)
+          (:name "Due Today"
+                 :deadline today)
+          (:name "Overdue"
+                 :deadline past)
+          (:name "Due Soon"
+                 :deadline future)
+          (:name "Waiting"
+                 :todo "WAITING"))))
+#+end_src
+
+** Org Roam
+Note-taking system based on the Zettelkasten method.
+
+#+begin_src emacs-lisp
+  ;; Org-roam configuration (Note-taking system)
+(use-package org-roam
+  :ensure t
+  :init
+  (setq org-roam-v2-ack t)
+  :custom
+  (org-roam-directory "~/org-roam")
+  (org-roam-completion-everywhere t)
+  (org-roam-capture-templates
+   '(("d" "default" plain
+      "%?"
+      :if-new (file+head "%<%Y%m%d%H%M%S>-${slug}.org" "#+title: ${title}\n")
+      :unnarrowed t)
+     
+     ("p" "project" plain
+      "* Overview\n\n%?\n\n* Goals\n\n- \n\n* Tasks\n\n** TODO Initial planning\n\n* Timeline\n\n* Resources\n\n* Notes\n\n* Related\n\n"
+      :if-new (file+head "%<%Y%m%d%H%M%S>-${slug}.org" "#+title: ${title}\n#+category: Projects\n#+filetags: :project:")
+      :unnarrowed t)
+     
+     ("m" "meeting" plain
+      "* Attendees\n\n- %?\n\n* Agenda\n\n* Discussion\n\n* Action Items\n\n** TODO \n\n* Follow-up\n\n"
+      :if-new (file+head "%<%Y%m%d%H%M%S>-meeting-${slug}.org" "#+title: Meeting: ${title}\n#+date: %<%Y-%m-%d>\n#+filetags: :meeting:")
+      :unnarrowed t)
+     
+     ("c" "concept" plain
+      "* Definition\n\n%?\n\n* Key Points\n\n* Examples\n\n* Related Concepts\n\n* References\n\n"
+      :if-new (file+head "%<%Y%m%d%H%M%S>-${slug}.org" "#+title: ${title}\n#+filetags: :concept:")
+      :unnarrowed t)
+     
+     ("l" "literature" plain
+      "* Source\n\nAuthor: %^{Author}\nTitle: ${title}\nYear: %^{Year}\nType: %^{Type|Book|Article|Paper|Website}\n\n* Summary\n\n%?\n\n* Key Insights\n\n* Quotes\n\n* Critique\n\n* Related To\n\n"
+      :if-new (file+head "%<%Y%m%d%H%M%S>-${slug}.org" "#+title: ${title}\n#+filetags: :literature:")
+      :unnarrowed t)
+     
+     ("t" "tech" plain
+      "* Overview\n\n%?\n\n* Implementation\n\n#+begin_src \n\n#+end_src\n\n* Examples\n\n* Troubleshooting\n\n* References\n\n"
+      :if-new (file+head "%<%Y%m%d%H%M%S>-${slug}.org" "#+title: ${title}\n#+filetags: :tech:")
+      :unnarrowed t)
+     
+     ("pe" "person" plain
+      "* Contact Information\n\nEmail: %?\nPhone: \nOrganization: \nRole: \n\n* Interactions\n\n** %<%Y-%m-%d>\n\n* Projects\n\n* Notes\n\n"
+      :if-new (file+head "%<%Y%m%d%H%M%S>-${slug}.org" "#+title: ${title}\n#+filetags: :person:")
+      :unnarrowed t)
+     
+     ("dj" "daily" plain
+      "* Tasks for Today\n\n** TODO %?\n\n* Notes\n\n* Thoughts and Reflections\n\n* Accomplishments\n\n"
+      :if-new (file+head "%<%Y%m%d>-daily.org" "#+title: Journal: %<%Y-%m-%d %A>\n#+filetags: :daily:")
+      :unnarrowed t)
+     
+     ("ps" "problem-solution" plain
+      "* Problem Statement\n\n%?\n\n* Constraints and Requirements\n\n* Possible Solutions\n\n* Chosen Solution\n\n* Implementation\n\n* Results and Evaluation\n\n"
+      :if-new (file+head "%<%Y%m%d%H%M%S>-${slug}.org" "#+title: ${title}\n#+filetags: :problem:solution:")
+      :unnarrowed t)
+     
+     ("do" "devops" plain
+      "* System Overview\n\n%?\n\n* Configuration\n\n#+begin_src yaml\n\n#+end_src\n\n* Setup Instructions\n\n* Maintenance Procedures\n\n* Troubleshooting\n\n* Monitoring\n\n* Related Infrastructure\n\n"
+      :if-new (file+head "%<%Y%m%d%H%M%S>-${slug}.org" "#+title: ${title}\n#+filetags: :devops:system:")
+      :unnarrowed t)
+     
+     ("r" "research" plain
+      "* Research Question\n\n%?\n\n* Hypothesis\n\n* Methodology\n\n* Findings\n\n* Conclusions\n\n* Future Work\n\n* References\n\n"
+      :if-new (file+head "%<%Y%m%d%H%M%S>-${slug}.org" "#+title: Research: ${title}\n#+filetags: :research:")
+      :unnarrowed t)))
+  
+  :bind (("C-c n l" . org-roam-buffer-toggle)
+         ("C-c n f" . org-roam-node-find)
+         ("C-c n i" . org-roam-node-insert)
+         ("C-c n g" . org-roam-ui-mode)
+         :map org-mode-map
+         ("C-M-i" . completion-at-point))
+  :config
+  (org-roam-db-autosync-mode))
+
+(use-package org-roam-ui
+  :after org-roam
+  :config
+  (setq org-roam-ui-sync-theme t
+        org-roam-ui-follow t
+        org-roam-ui-update-on-save t
+        org-roam-ui-open-on-start t))
+#+end_src
+
+** Org Journal
+Daily notes for Org mode.
+
+#+begin_src emacs-lisp
+;; Org-journal for daily notes
+(use-package org-journal
+  :ensure t
+  :defer t
+  :custom
+  (org-journal-dir "~/org-roam/journal/")
+  (org-journal-date-format "%A, %d %B %Y")
+  (org-journal-file-format "%Y-%m-%d.org"))
+#+end_src
+
+* Evil Mode
+Vim emulation for Emacs.
+
+#+begin_src emacs-lisp
+  (setq evil-want-keybinding nil)
+
+  ;; Evil mode (Vim emulation) configuration
+(use-package evil
+  :init
+  (setq evil-want-integration t)
+  (setq evil-want-keybinding nil)
+  (setq evil-want-C-u-scroll t)
+  (setq evil-want-C-i-jump nil)
+  :config
+  (evil-mode 1)
+  (define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
+  (define-key evil-insert-state-map (kbd "C-h") 'evil-delete-backward-char-and-join)
+  
+  ;; Use visual line motions even outside of visual-line-mode buffers
+  (evil-global-set-key 'motion "j" 'evil-next-visual-line)
+  (evil-global-set-key 'motion "k" 'evil-previous-visual-line)
+
+  (evil-set-initial-state 'messages-buffer-mode 'normal)
+  (evil-set-initial-state 'dashboard-mode 'normal)
+  
+  ;; Move this line here from key-chord config
+  (when (fboundp 'key-chord-define)
+    (key-chord-define evil-insert-state-map "jk" 'evil-normal-state)))
+  ;; Evil collection for evil mode compatibility with various modes
+  (use-package evil-collection
+    :after evil
+    :config
+    (evil-collection-init))
+
+  ;; Evil-nerd-commenter for better comment handling
+  (use-package evil-nerd-commenter
+    :bind ("M-/" . evilnc-comment-or-uncomment-lines))
+#+end_src
+
+* Development Tools
+Tools for programming and development.
+
+** Syntax Checking
+Flycheck for syntax checking.
+
+#+begin_src emacs-lisp
+;; Flycheck - Syntax checking
+(use-package flycheck
+  :ensure t
+  :init (global-flycheck-mode)
+  :config
+  (setq flycheck-check-syntax-automatically '(save mode-enabled))
+  (setq flycheck-highlighting-mode 'symbols)
+  (setq flycheck-indication-mode 'right-fringe))
+#+end_src
+
+** Completion
+Company mode for completion.
+
+#+begin_src emacs-lisp
+;; Company mode for completion
+(use-package company
+  :config
+  (global-company-mode t))
+#+end_src
+
+** LSP Support
+Eglot for LSP (Language Server Protocol) support.
+
+#+begin_src emacs-lisp
+;; Eglot for LSP support
+(use-package eglot
+  :ensure t
+  :config
+  (add-to-list 'eglot-server-programs '(rust-mode . ("rust-analyzer"))))
+#+end_src
+
+** Programming Languages
+
+*** Python
+Python development environment.
+
+#+begin_src emacs-lisp
+;; Python IDE setup
+(use-package python-mode
+  :ensure t
+  :hook (python-mode . eglot-ensure)
+  :custom
+  (python-shell-interpreter "python3"))
+
+;; Add poetry support for Python project management
+(use-package poetry
+  :ensure t
+  :hook (python-mode . poetry-tracking-mode))
+
+;; Better Python docstring support
+(use-package python-docstring
+  :ensure t
+  :hook (python-mode . python-docstring-mode))
+#+end_src
+
+*** C/C++
+C/C++ development environment.
+
+#+begin_src emacs-lisp
+;; Better C/C++ mode with modern IDE features
+(use-package ccls
+  :ensure t
+  :hook ((c-mode c++-mode) . eglot-ensure)
+  :config
+  (setq ccls-executable "ccls")
+  (setq-default c-basic-offset 4))
+
+;; Enhanced C/C++ navigation and refactoring
+(use-package modern-cpp-font-lock
+  :ensure t
+  :hook (c++-mode . modern-c++-font-lock-mode))
+#+end_src
+
+*** Nix
+Nix development environment.
+
+#+begin_src emacs-lisp
+;; Enhanced Nix mode
+(use-package nix-mode
+  :ensure t
+  :mode "\\.nix\\'"
+  :hook (nix-mode . eglot-ensure)
+  :config
+  (setq nix-indent-function 'nix-indent-line))
+#+end_src
+
+** Programming Utilities
+Utilities for programming.
+
+#+begin_src emacs-lisp
+;; Aggressive indentation for cleaner code
+(use-package aggressive-indent
+  :ensure t
+  :hook ((emacs-lisp-mode lisp-mode) . aggressive-indent-mode))
+
+;; Smartparens for intelligent parenthesis handling
+(use-package smartparens
+  :ensure t
+  :hook (prog-mode . smartparens-mode)
+  :config
+  (require 'smartparens-config))
+
+;; Rainbow delimiters for easier bracket matching
+(use-package rainbow-delimiters
+  :ensure t
+  :hook (prog-mode . rainbow-delimiters-mode))
+
+;; Tree-sitter for better syntax highlighting and navigation
+(use-package tree-sitter
+  :ensure t
+  :config
+  (global-tree-sitter-mode)
+  :hook (tree-sitter-after-on . tree-sitter-hl-mode))
+
+(use-package tree-sitter-langs
+  :ensure t
+  :after tree-sitter)
+
+;; Code folding with origami
+(use-package origami
+  :ensure t
+  :hook (prog-mode . origami-mode)
+  :bind (:map origami-mode-map
+              ("C-c o f" . origami-toggle-node)
+              ("C-c o F" . origami-toggle-all-nodes)))
+#+end_src
+
+* Terminal Emulator
+Better terminal emulator using vterm.
+
+#+begin_src emacs-lisp
+;; vterm configuration - Better terminal emulator
+(use-package vterm
+    :ensure t
+    :bind ("C-c C-v" . vterm)
+    :config
+    ;; Set the shell to use
+    (setq vterm-shell (executable-find "zsh"))  ;; or use "zsh" if that's your preference
+    ;; Increase scrollback
+    (setq vterm-max-scrollback 10000)
+    ;; Kill buffer when terminal process is terminated
+    (setq vterm-kill-buffer-on-exit t))
+#+end_src
+
+* RSS Feed Reader
+Elfeed for reading RSS feeds.
+
+#+begin_src emacs-lisp
+;; Elfeed - RSS Feed reader
+(use-package elfeed
+  :ensure t
+  :config
+  (setq elfeed-feeds
+	'("https://www.tecmint.com/feed/")))
+#+end_src
+
+* Configuration Loader
+This section loads the config.org file.
+
+#+begin_src emacs-lisp
+;;; init.el --- Load the config.org file -*- lexical-binding: t -*-
+
+;; This file loads the actual configuration from ~/.emacs.d/config.org
+
+;; Set up package.el
+(require 'package)
+(setq package-archives '(("melpa" . "https://melpa.org/packages/")
+                         ("org" . "https://orgmode.org/elpa/")
+                         ("elpa" . "https://elpa.gnu.org/packages/")))
+(package-initialize)
+
+;; Install use-package if it's not already installed
+(unless (package-installed-p 'use-package)
+  (package-refresh-contents)
+  (package-install 'use-package))
+
+;; Load the literate config if it exists
+(when (file-exists-p "~/.emacs.d/config.org")
+  (org-babel-load-file "~/.emacs.d/config.org"))
+
+;;; init.el ends here
+#+end_src
