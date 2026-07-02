@@ -148,37 +148,50 @@ Configuration for package management with package.el and use-package.
 Configure package repositories and initialize package management.
 
 #+begin_src emacs-lisp
-;; Package management setup
-(require 'package)
+;; Bootstrap straight.el (Doom-style reproducible package management)
+(defvar bootstrap-version)
+(let ((bootstrap-file
+       (expand-file-name
+        "straight/repos/straight.el/bootstrap.el"
+        (or (bound-and-true-p straight-base-dir)
+            user-emacs-directory)))
+      (bootstrap-version 7))
+  (unless (file-exists-p bootstrap-file)
+    (with-current-buffer
+        (url-retrieve-synchronously
+         "https://raw.githubusercontent.com/radian-software/straight.el/develop/install.el"
+         'silent 'inhibit-cookies)
+      (goto-char (point-max))
+      (eval-print-last-sexp)))
+  (load bootstrap-file nil 'nomessage))
 
-;; Configure package repositories
-(setq package-archives '(("melpa" . "https://melpa.org/packages/")
-                         ("elpa" . "https://elpa.gnu.org/packages/")))
-
-(package-initialize)
-(unless package-archive-contents
-  (package-refresh-contents))
-
-;; Initialize use-package
-(unless (package-installed-p 'use-package)
-  (package-install 'use-package))
-
+;; Use straight.el as the default backend for use-package. With this set,
+;; every (use-package ...) is installed via straight; no :ensure needed.
+(straight-use-package 'use-package)
+(setq straight-use-package-by-default t)
 (require 'use-package)
-(setq use-package-always-ensure t)
 #+end_src
 
-** Auto Package Update
-Automatically update packages.
+** Version Pinning
+straight.el pins exact package revisions in a lockfile. Run =M-x
+straight-freeze-versions= to write =straight/versions/default.el= (commit
+that file to this repo), and =M-x straight-thaw-versions= on another
+machine to check out those exact revisions. Update deliberately with the
+helper below, then re-freeze.
 
 #+begin_src emacs-lisp
-;; Auto-package-update - Automatically update packages
-(use-package auto-package-update
-  :ensure t
-  :custom
-  (auto-package-update-delete-old-versions t)
-  (auto-package-update-hide-results t)
-  :config
-  (auto-package-update-maybe))
+;; Convenience wrappers for the straight.el lockfile workflow
+(defun my/packages-freeze ()
+  "Write the current package revisions to the lockfile."
+  (interactive)
+  (straight-freeze-versions))
+
+(defun my/packages-update ()
+  "Pull all packages, rebuild them, then refreeze the lockfile."
+  (interactive)
+  (straight-pull-all)
+  (straight-rebuild-all)
+  (straight-freeze-versions))
 #+end_src
 
 * Editor Behavior
@@ -239,7 +252,7 @@ Define global key bindings for common operations.
 (bind-key "C-c r" 'replace-string)
 (bind-key "C-c s" 'isearch-forward)
 (bind-key "C-z" 'undo)
-(bind-key "M-g" 'goto-line)
+;; Leave M-g as a prefix (M-g g = goto-line); Consult binds M-g g / M-g i
 (bind-key "C-c c" 'comment-region)
 (bind-key "C-c u" 'uncomment-region)
 (bind-key "M-m" 'move-beginning-of-line)
@@ -251,17 +264,79 @@ Define global key bindings for common operations.
 Use general.el for better key binding configuration.
 
 #+begin_src emacs-lisp
-;; General.el for better key binding configuration
+;; General.el for better key binding configuration.
+;; Loaded after evil so the leader can bind into evil's state maps and
+;; reference evil keymaps like `evil-window-map'.
 (use-package general
+  :after evil
   :config
   (general-create-definer rune/leader-keys
     :keymaps '(normal insert visual emacs)
     :prefix "SPC"
-    :global-prefix "C-SPC"))
+    :global-prefix "C-SPC")
+
+  ;; Doom-style SPC leader menu
+  (rune/leader-keys
+    "SPC" '(execute-extended-command :which-key "M-x")
+    ":"   '(execute-extended-command :which-key "M-x")
+
+    "f"  '(:ignore t :which-key "file")
+    "ff" '(find-file :which-key "find file")
+    "fr" '(consult-recent-file :which-key "recent file")
+    "fs" '(save-buffer :which-key "save")
+    "fp" '((lambda () (interactive) (find-file "~/.emacs.d/config.org"))
+           :which-key "edit config")
+
+    "b"  '(:ignore t :which-key "buffer")
+    "bb" '(consult-buffer :which-key "switch buffer")
+    "bi" '(ibuffer :which-key "ibuffer")
+    "bk" '(kill-current-buffer :which-key "kill")
+    "br" '(revert-buffer :which-key "revert")
+
+    "s"  '(:ignore t :which-key "search")
+    "ss" '(consult-line :which-key "search buffer")
+    "sp" '(consult-ripgrep :which-key "search project")
+    "si" '(consult-imenu :which-key "imenu")
+
+    "p"  '(:ignore t :which-key "project")
+    "pp" '(projectile-switch-project :which-key "switch project")
+    "pf" '(projectile-find-file :which-key "find file")
+    "pb" '(consult-project-buffer :which-key "project buffer")
+
+    "g"  '(:ignore t :which-key "git")
+    "gg" '(magit-status :which-key "status")
+    "gb" '(magit-blame :which-key "blame")
+
+    "w"  '(:keymap evil-window-map :which-key "window")
+    "h"  '(:keymap help-map :which-key "help")
+
+    "t"  '(:ignore t :which-key "toggle")
+    "tt" '(my/toggle-theme :which-key "theme")
+    "tl" '(display-line-numbers-mode :which-key "line numbers")
+
+    "o"  '(:ignore t :which-key "open")
+    "ot" '(vterm :which-key "terminal")
+    "op" '(treemacs :which-key "treemacs")
+    "od" '(dired-jump :which-key "dired")
+
+    "n"  '(:ignore t :which-key "notes")
+    "nf" '(org-roam-node-find :which-key "find node")
+    "ni" '(org-roam-node-insert :which-key "insert node")
+    "nl" '(org-roam-buffer-toggle :which-key "backlinks")
+    "nc" '(org-roam-capture :which-key "capture")
+
+    "c"  '(:ignore t :which-key "code")
+    "ca" '(lsp-execute-code-action :which-key "code action")
+    "cr" '(lsp-rename :which-key "rename")
+    "cd" '(lsp-find-definition :which-key "definition")
+
+    "j"  '(:ignore t :which-key "jump")
+    "jj" '(avy-goto-char-timer :which-key "char")
+    "jl" '(avy-goto-line :which-key "line")))
 
 ;; Define buffer switching shortcut
 (general-define-key
- "C-M-j" 'counsel-switch-buffer)
+ "C-M-j" 'consult-buffer)
 #+end_src
 
 ** Key-chord
@@ -270,7 +345,6 @@ Use key-chord for faster mode switching.
 #+begin_src emacs-lisp
   ;; Key-chord for faster mode switching (e.g., 'jk' to exit insert mode)
   (use-package key-chord
-    :ensure t
     :after evil  ;; Add this line to ensure it loads after evil
     :config
     (key-chord-mode 1)
@@ -295,43 +369,76 @@ Tie related commands into a family of short bindings.
 * Completion Framework
 Configuration for the completion framework.
 
-** Ivy
-Configuring Ivy as the completion framework.
+** Vertico
+Vertico provides a modern vertical minibuffer completion UI.
 
 #+begin_src emacs-lisp
-;; Ivy - Completion framework
-(use-package ivy
-  :diminish
-  :bind (("C-s" . swiper)
-	 :map ivy-minibuffer-map
-	 ("TAB" . ivy-alt-done)
-	 ("C-l" . ivy-alt-done)
-	 ("C-j" . ivy-next-line)
-	 ("C-k" . ivy-previous-line)
-	 :map ivy-switch-buffer-map
-	 ("C-k" . ivy-previous-line)
-	 ("C-l" . ivy-done)
-	 ("C-d" . ivy-switch-buffer-kill)
-	 :map ivy-reverse-i-search-map
-	 ("C-k" . ivy-previous-line)
-	 ("C-d" . ivy-reverse-i-search-kill))
-  :config
-  (ivy-mode 1))
+;; Vertico - Vertical interactive completion UI
+(use-package vertico
+  :init
+  (vertico-mode)
+  :custom
+  (vertico-cycle t))
+
+;; Persist minibuffer history so Vertico can surface recent choices
+(savehist-mode 1)
 #+end_src
 
-** Counsel
-Enhanced versions of common Emacs commands.
+** Orderless
+Fuzzy, space-separated completion matching.
 
 #+begin_src emacs-lisp
-;; Counsel - Enhanced versions of common Emacs commands
-(use-package counsel
-  :bind (("M-x" . counsel-M-x)
-	 ("C-x b" . counsel-ibuffer)
-	 ("C-x C-f" . counsel-find-file)
-	 :map minibuffer-local-map
-	 ("C-r" . 'counsel-minibuffer-history))
+;; Orderless - Flexible completion matching styles
+(use-package orderless
+  :custom
+  (completion-styles '(orderless basic))
+  (completion-category-defaults nil)
+  (completion-category-overrides '((file (styles partial-completion)))))
+#+end_src
+
+** Marginalia
+Rich annotations in the minibuffer margins.
+
+#+begin_src emacs-lisp
+;; Marginalia - Annotations for minibuffer completions
+(use-package marginalia
+  :init
+  (marginalia-mode))
+#+end_src
+
+** Consult
+Consult provides practical search-and-navigation commands built on
+=completing-read= (buffer switching, line search, ripgrep, imenu, …).
+
+#+begin_src emacs-lisp
+;; Consult - Search and navigation commands
+(use-package consult
+  :bind (("C-s"   . consult-line)
+         ("C-x b" . consult-buffer)
+         ("M-y"   . consult-yank-pop)
+         ("M-g g" . consult-goto-line)
+         ("M-g i" . consult-imenu))
   :config
-  (setq ivy-initial-inputs-alist nil))
+  (setq consult-narrow-key "<"))
+#+end_src
+
+** Embark
+Embark offers context actions on the thing at point or the current
+completion candidate (like a right-click menu for the minibuffer).
+
+#+begin_src emacs-lisp
+;; Embark - Contextual actions
+(use-package embark
+  :bind (("C-." . embark-act)
+         ("C-h B" . embark-bindings))
+  :init
+  ;; Let Embark act as the prefix-help command (C-h after a prefix)
+  (setq prefix-help-command #'embark-prefix-help-command))
+
+;; Embark + Consult integration (e.g. export a search to a live buffer)
+(use-package embark-consult
+  :after (embark consult)
+  :hook (embark-collect-mode . consult-preview-at-point-mode))
 #+end_src
 
 ** Helpful
@@ -339,13 +446,10 @@ More helpful help buffers.
 
 #+begin_src emacs-lisp
 (use-package helpful
-  :custom
-  (counsel-describe-function-function #'helpful-callable)
-  (counsel-describe-variable-function #'helpful-variable)
   :bind
-  ([remap describe-function] . helpful-function)  ; Changed from counsel-describe-function
+  ([remap describe-function] . helpful-function)
   ([remap describe-command] . helpful-command)
-  ([remap describe-variable] . helpful-variable)  ; Changed from counsel-describe-variable
+  ([remap describe-variable] . helpful-variable)
   ([remap describe-key] . helpful-key))
 #+end_src
 
@@ -367,12 +471,10 @@ Configuration for the startup dashboard.
 #+begin_src emacs-lisp
 ;; all-the-icons (must load before dashboard)
 (use-package all-the-icons
-  :ensure t
   :if (display-graphic-p))
 
 ;; Dashboard - Startup screen
 (use-package dashboard
-  :ensure t
   :after all-the-icons
   :config
   (setq dashboard-banner-logo-title "Welcome to Emacs!")
@@ -397,7 +499,6 @@ A fancy and fast modeline.
 #+begin_src emacs-lisp
 ;; Doom modeline - A fancy and fast modeline
 (use-package doom-modeline
-  :ensure t
   :init (doom-modeline-mode 1)
   :custom ((doom-modeline-height 20)))
 #+end_src
@@ -408,7 +509,6 @@ Configure themes and theme switching functionality.
 #+begin_src emacs-lisp
 ;; Theme configuration
 (use-package modus-themes
-  :ensure t
   :config
   ;; Add all your customizations prior to loading the themes
   (setq modus-themes-italic-constructs t
@@ -453,14 +553,12 @@ Display git diff information inline.
 #+begin_src emacs-lisp
 ;; Diff-hl for inline git diff information
 (use-package diff-hl
-  :ensure t
   :config
   (global-diff-hl-mode))
 
 ;; Treemacs Git integration
 (use-package treemacs-magit
-  :after (treemacs magit)
-  :ensure t)
+  :after (treemacs magit))
 #+end_src
 
 * Project Management
@@ -486,7 +584,7 @@ Project interaction library.
                                     :compile "cargo build"
                                     :test "cargo test"
                                     :run "cargo run")
-  :custom ((projectile-completion-system 'ivy))
+  :custom ((projectile-completion-system 'default))
   :bind-keymap
   ("C-c p" . projectile-command-map)
   :init
@@ -501,7 +599,6 @@ Integration for nix-shell support.
 #+begin_src emacs-lisp
 ;; Add direnv integration for nix-shell support
 (use-package direnv
-  :ensure t
   :config
   (direnv-mode))
 #+end_src
@@ -609,7 +706,6 @@ Modern UI enhancements for Org mode.
 #+begin_src emacs-lisp
 ;; Modern Org mode UI enhancements
 (use-package org-modern
-  :ensure t
   :hook (org-mode . org-modern-mode)
   :config
   (setq org-modern-agenda-borders t))
@@ -659,7 +755,6 @@ Better organization for Org agenda.
 #+begin_src emacs-lisp
 ;; Org-super-agenda for better agenda organization
 (use-package org-super-agenda
-  :ensure t
   :after org-agenda
   :config
   (org-super-agenda-mode)
@@ -688,7 +783,6 @@ Note-taking system based on the Zettelkasten method.
 #+begin_src emacs-lisp
   ;; Org-roam configuration (Note-taking system)
 (use-package org-roam
-  :ensure t
   :init
   (setq org-roam-v2-ack t)
   :custom
@@ -774,7 +868,6 @@ Daily notes for Org mode.
 #+begin_src emacs-lisp
 ;; Org-journal for daily notes
 (use-package org-journal
-  :ensure t
   :defer t
   :custom
   (org-journal-dir "~/org-roam/journal/")
@@ -817,6 +910,25 @@ Vim emulation for Emacs.
 ;; Evil-nerd-commenter for better comment handling
 (use-package evil-nerd-commenter
   :bind ("M-/" . evilnc-comment-or-uncomment-lines))
+
+;; Evil-surround - add, change, or delete surrounding pairs/quotes/tags
+(use-package evil-surround
+  :after evil
+  :config
+  (global-evil-surround-mode 1))
+
+;; Evil-snipe - two-char motion on s/S and enhanced f/F/t/T (Doom default)
+(use-package evil-snipe
+  :after evil
+  :config
+  (setq evil-snipe-scope 'buffer)
+  (evil-snipe-mode +1)
+  (evil-snipe-override-mode +1))
+
+;; Avy - jump to any visible position (used by the SPC j leader menu)
+(use-package avy
+  :config
+  (setq avy-timeout-seconds 0.3))
 #+end_src
 
 * Development Tools
@@ -828,7 +940,6 @@ Flycheck for syntax checking.
 #+begin_src emacs-lisp
 ;; Flycheck - Syntax checking
 (use-package flycheck
-  :ensure t
   :init (global-flycheck-mode)
   :config
   (setq flycheck-check-syntax-automatically '(save mode-enabled))
@@ -847,14 +958,31 @@ Company mode for completion.
 #+end_src
 
 ** LSP Support
-Eglot for LSP (Language Server Protocol) support.
+lsp-mode + lsp-ui for a richer Language Server Protocol experience
+(sideline diagnostics, hover docs, breadcrumb headerline, code actions).
 
 #+begin_src emacs-lisp
-;; Eglot for LSP support
-(use-package eglot
-  :ensure t
+;; lsp-mode - Language Server Protocol client
+(use-package lsp-mode
+  :init
+  ;; All lsp-mode commands live under this prefix (e.g. C-c l r r = rename)
+  (setq lsp-keymap-prefix "C-c l")
+  :hook (lsp-mode . lsp-enable-which-key-integration)
+  :commands (lsp lsp-deferred)
   :config
-  (add-to-list 'eglot-server-programs '(rust-mode . ("rust-analyzer"))))
+  (setq lsp-idle-delay 0.5
+        lsp-headerline-breadcrumb-enable t
+        lsp-completion-provider :capf))
+
+;; lsp-ui - UI enhancements (sideline, hover docs, peek)
+(use-package lsp-ui
+  :commands lsp-ui-mode
+  :hook (lsp-mode . lsp-ui-mode)
+  :config
+  (setq lsp-ui-sideline-enable t
+        lsp-ui-sideline-show-hover nil
+        lsp-ui-doc-enable t
+        lsp-ui-doc-position 'at-point))
 #+end_src
 
 ** Programming Languages
@@ -865,8 +993,7 @@ Rust development environment.
 #+begin_src emacs-lisp
 ;; Rust mode
 (use-package rust-mode
-  :ensure t
-  :hook (rust-mode . eglot-ensure))
+  :hook (rust-mode . lsp-deferred))
 #+end_src
 
 *** Python
@@ -875,19 +1002,16 @@ Python development environment.
 #+begin_src emacs-lisp
 ;; Python IDE setup
 (use-package python-mode
-  :ensure t
-  :hook (python-mode . eglot-ensure)
+  :hook (python-mode . lsp-deferred)
   :custom
   (python-shell-interpreter "python3"))
 
 ;; Add poetry support for Python project management
 (use-package poetry
-  :ensure t
   :hook (python-mode . poetry-tracking-mode))
 
 ;; Better Python docstring support
 (use-package python-docstring
-  :ensure t
   :hook (python-mode . python-docstring-mode))
 #+end_src
 
@@ -895,17 +1019,15 @@ Python development environment.
 C/C++ development environment.
 
 #+begin_src emacs-lisp
-;; Better C/C++ mode with modern IDE features
+;; Better C/C++ mode with modern IDE features (ccls is an lsp-mode client)
 (use-package ccls
-  :ensure t
-  :hook ((c-mode c++-mode) . eglot-ensure)
+  :hook ((c-mode c++-mode) . (lambda () (require 'ccls) (lsp-deferred)))
   :config
   (setq ccls-executable "ccls")
   (setq-default c-basic-offset 4))
 
 ;; Enhanced C/C++ navigation and refactoring
 (use-package modern-cpp-font-lock
-  :ensure t
   :hook (c++-mode . modern-c++-font-lock-mode))
 #+end_src
 
@@ -915,9 +1037,8 @@ Nix development environment.
 #+begin_src emacs-lisp
 ;; Enhanced Nix mode
 (use-package nix-mode
-  :ensure t
   :mode "\\.nix\\'"
-  :hook (nix-mode . eglot-ensure)
+  :hook (nix-mode . lsp-deferred)
   :config
   (setq nix-indent-function 'nix-indent-line))
 #+end_src
@@ -928,35 +1049,58 @@ Utilities for programming.
 #+begin_src emacs-lisp
 ;; Aggressive indentation for cleaner code
 (use-package aggressive-indent
-  :ensure t
   :hook ((emacs-lisp-mode lisp-mode) . aggressive-indent-mode))
 
 ;; Smartparens for intelligent parenthesis handling
 (use-package smartparens
-  :ensure t
   :hook (prog-mode . smartparens-mode)
   :config
   (require 'smartparens-config))
 
 ;; Rainbow delimiters for easier bracket matching
 (use-package rainbow-delimiters
-  :ensure t
   :hook (prog-mode . rainbow-delimiters-mode))
 
 ;; Treesit-auto for automatic tree-sitter grammar management (Emacs 29+)
 (use-package treesit-auto
-  :ensure t
   :config
   (setq treesit-auto-install 'prompt)
   (global-treesit-auto-mode))
 
 ;; Code folding with origami
 (use-package origami
-  :ensure t
   :hook (prog-mode . origami-mode)
   :bind (:map origami-mode-map
               ("C-c o f" . origami-toggle-node)
               ("C-c o F" . origami-toggle-all-nodes)))
+#+end_src
+
+* Popups
+Doom-style popup management: transient buffers (help, compilation, REPLs,
+vterm, LSP help) open as dismissible popups you can toggle and cycle.
+
+#+begin_src emacs-lisp
+;; Popper - tame transient/popup buffers
+(use-package popper
+  :bind (("C-`"   . popper-toggle)
+         ("M-`"   . popper-cycle)
+         ("C-M-`" . popper-toggle-type))
+  :init
+  (setq popper-reference-buffers
+        '("\\*Messages\\*"
+          "\\*Warnings\\*"
+          "Output\\*$"
+          "\\*Async Shell Command\\*"
+          "\\*Compile-Log\\*"
+          help-mode
+          helpful-mode
+          compilation-mode
+          "^\\*eldoc.*\\*$"
+          "\\*lsp-help\\*"
+          "^\\*vterm.*\\*$"
+          vterm-mode))
+  (popper-mode +1)
+  (popper-echo-mode +1))
 #+end_src
 
 * Terminal Emulator
@@ -965,7 +1109,6 @@ Better terminal emulator using vterm.
 #+begin_src emacs-lisp
 ;; vterm configuration - Better terminal emulator
 (use-package vterm
-    :ensure t
     :bind ("C-c C-v" . vterm)
     :config
     ;; Set the shell to use
@@ -982,7 +1125,6 @@ Elfeed for reading RSS feeds.
 #+begin_src emacs-lisp
 ;; Elfeed - RSS Feed reader
 (use-package elfeed
-  :ensure t
   :config
   (setq elfeed-feeds
 	'("https://www.tecmint.com/feed/")))

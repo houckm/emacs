@@ -3,6 +3,9 @@
 ;; Minimize garbage collection during startup
 (setq gc-cons-threshold most-positive-fixnum)
 
+;; Don't let package.el initialize at startup; straight.el manages packages
+(setq package-enable-at-startup nil)
+
 ;; Lower threshold back to a reasonable value after startup
 (add-hook 'emacs-startup-hook
           (lambda ()

@@ -6,8 +6,9 @@
 
 # Packages & build artifacts
 /elpa/
-# /straight/ only relevant if you use straight.el
-/straight/
+# straight.el build/repos are regenerated; but keep the version lockfile
+/straight/*
+!/straight/versions/
 /.cache/
 /.last-package-update-day
 
@@ -24,6 +25,7 @@
 /org-roam.db
 
 # Runtime state
+/history
 /auto-save-list/
 /transient/
 /eshell/
